@@ -25,7 +25,23 @@ The core content of the repository includes three parts:
 Codes are mainly written in Python (Pandas, Scikit-learn) and R (Synth package, CausalImpact), balancing usability and scalability, and can be directly adapted to data formats in different research scenarios. Feel free to star the repository for updates, and we welcome suggestions via Issues or Pull Requests to jointly promote the practical application of SCM methods.
 
 ---
-## 仓库代码对应文献
+## 仓库指引
+欢迎使用本合成控制法资源库。为帮助您更高效地检索与学习，我们强烈建议先阅读本仓库的核心索引文件：`合成控制法文献梳理.xlsx'。
+
+该表格系统梳理了合成控制法领域绝大多数方法类文献，具备以下特点：
+
+- 内容分类清晰：按方法类型、发展脉络等维度对文献进行归类；
+
+- 要点提炼精准：每篇文献均附有主要内容摘要与内容类型；
+
+- 适用层次广泛：无论您是初学者还是进阶研究者，都能快速定位所需信息。
+
+此外，我们还为文献整理了可复现的官方或社区代码，放置于对应文件夹中。您可结合文献原文与代码进行对照学习，深入理解各类合成控制方法的实现过程与技术细节。
+
+我们衷心希望本仓库能成为您学习与应用合成控制法的得力工具，如有任何问题或建议，欢迎参与维护与讨论。
+
+
+## 附：仓库代码对应文献
 | File Name | Authors | Year | Title | DOI |
 |-----------|------|------|----------|-----|
 | hcw-data | Hsiao et al. | 2012 | A Panel Data Approach for Program Evaluation -- Measuring the Benefits of Political and Economic Integration of Hong Kong with Mainland China | [10.1002/jae.1230](https://doi.org/10.1002/jae.1230) |
