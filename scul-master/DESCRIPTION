@@ -1,0 +1,38 @@
+Package: scul
+Title: Synthetic Control Using Lasso (SCUL)
+Version: 0.2.0.1
+Authors@R: person("Alex", "Hollingsworth", email = "hollinal@indiana.edu", role = c("aut", "cre"))
+Maintainer: Alex Hollingsworth <hollinal@indiana.edu>
+Date: 2021-05-25
+Description: Synthetic control methods are a popular strategy for estimating counterfactual outcomes using weighted averages of untreated groups. We use lasso regressions to construct synthetic control weights, allowing for a high-dimensional donor pool and for negatively correlated donors to contribute to the synthetic prediction; neither of which is possible using traditional methods. This package provides code to run the synthetic control using lasso (SCUL) estimator that is outlined in Hollingsworth and Wing (2020) "Tactics for design and inference in synthetic control studies: An applied example using high-dimensional data." https://doi.org/10.31235/osf.io/fc9xt.
+Depends: R (>= 3.5)
+URL: https://hollinal.github.io/scul
+LazyData: true
+License: MIT + file LICENSE
+Encoding: UTF-8
+Imports:
+	tidyverse,
+	formattable,
+	ggplot2,
+	glmnet,
+	htmltools,
+	reshape2,
+	tidyr,
+	webshot,
+	caret,
+	dplyr, 
+	ggrepel, 
+	lubridate,
+	rlang, 
+	progress 
+RoxygenNote: 7.1.1
+Suggests: 
+    knitr,
+    rmarkdown, 
+    Synth, 
+    cowplot, 
+    kableExtra,
+    pacman, 
+    pBrackets
+VignetteBuilder: knitr
+BugReports: https://github.com/hollina/scul/issues/
