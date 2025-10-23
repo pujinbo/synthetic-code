@@ -1,7 +1,4 @@
-# synthetic-code
-
-
-# GitHub 仓库简介（中/英）
+# synthetic-code 仓库简介（中/英）
 
 ## 中文简介
 本仓库聚焦**合成控制法（Synthetic Control Method, SCM）** 及其拓展方法的代码实现与应用指南，旨在为因果推断领域的研究者、学生及实务工作者提供一站式技术资源。  
@@ -30,15 +27,31 @@ Codes are mainly written in Python (Pandas, Scikit-learn) and R (Synth package, 
 
 该表格系统梳理了合成控制法领域绝大多数方法类文献，具备以下特点：
 
-- 内容分类清晰：按方法类型、发展脉络等维度对文献进行归类；
+- **内容分类清晰**：按方法类型、发展脉络等维度对文献进行归类；
 
-- 要点提炼精准：每篇文献均附有主要内容摘要与内容类型；
+- **要点提炼精准**：每篇文献均附有主要内容摘要与内容类型；
 
-- 适用层次广泛：无论您是初学者还是进阶研究者，都能快速定位所需信息。
+- **适用层次广泛**：无论您是初学者还是进阶研究者，都能快速定位所需信息。
 
 此外，我们还为文献整理了可复现的官方或社区代码，放置于对应文件夹中。您可结合文献原文与代码进行对照学习，深入理解各类合成控制方法的实现过程与技术细节。
 
 我们衷心希望本仓库能成为您学习与应用合成控制法的得力工具，如有任何问题或建议，欢迎参与维护与讨论。
+
+
+
+## Repository Guide
+
+Welcome to the Synthetic Control Methods Resource Repository. To help you navigate and learn more efficiently, we strongly recommend starting with our core index file: `合成控制法文献梳理.xlsx` (Synthetic Control Methods Literature Review.xlsx).
+
+This spreadsheet systematically organizes most methodological literature in the field of synthetic control methods and offers the following features:
+
+- **Clear Categorization**: Literature is classified by method type, developmental trajectory, and other dimensions.
+- **Precise Summaries**: Each entry includes a summary of main content and content type.
+- **Wide Applicability**: Whether you are a beginner or an advanced researcher, you can quickly locate the information you need.
+
+In addition, we have compiled reproducible official or community code for the literature, stored in corresponding folders. You can compare the original papers with the code to deepen your understanding of the implementation process and technical details of various synthetic control methods.
+
+We sincerely hope this repository becomes a valuable tool for your study and application of synthetic control methods. If you have any questions or suggestions, you are welcome to participate in maintenance and discussions.
 
 
 ## 附：仓库代码对应文献
