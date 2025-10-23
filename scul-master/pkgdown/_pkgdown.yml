@@ -1,0 +1,27 @@
+destination: docs
+title: scul
+url: https://hollina.github.io/scul
+template:
+  params:
+    bootswatch: flatly
+  opengraph:
+    twitter:
+      creator: "@ajhollingsworth"
+authors:
+  Alex Hollingsworth:
+    href: "https://alexjhollingsworth.com"
+
+
+navbar:
+  title: "scul"
+  left:
+    - text: "Tutorial"
+      href: articles/scul-tutorial.html
+    - text: "Functions"
+      href: reference/index.html
+    - text: "Paper"
+      href: https://doi.org/10.31235/osf.io/fc9xt
+
+  right:
+   - icon: fa-github
+     href: https://github.com/hollina/scul
