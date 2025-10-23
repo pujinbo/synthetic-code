@@ -25,6 +25,7 @@ The core content of the repository includes three parts:
 Codes are mainly written in Python (Pandas, Scikit-learn) and R (Synth package, CausalImpact), balancing usability and scalability, and can be directly adapted to data formats in different research scenarios. Feel free to star the repository for updates, and we welcome suggestions via Issues or Pull Requests to jointly promote the practical application of SCM methods.
 
 ---
+## 仓库代码对应文献
 | File Name | Authors | Year | Title | DOI |
 |-----------|------|------|----------|-----|
 | hcw-data | Hsiao et al. | 2012 | A Panel Data Approach for Program Evaluation -- Measuring the Benefits of Political and Economic Integration of Hong Kong with Mainland China | 10.1002/jae.1230 |
