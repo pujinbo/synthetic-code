@@ -27,7 +27,6 @@ Codes are mainly written in Python (Pandas, Scikit-learn) and R (Synth package, 
 ---
 ## 仓库代码对应文献
 | File Name | Authors | Year | Title | DOI |
-| 文件夹名称 | 作者 | 年份 | 文献标题 | DOI |
 |-----------|------|------|----------|-----|
 | hcw-data | Hsiao et al. | 2012 | A Panel Data Approach for Program Evaluation -- Measuring the Benefits of Political and Economic Integration of Hong Kong with Mainland China | [10.1002/jae.1230](https://doi.org/10.1002/jae.1230) |
 | Abadie-2015 | Abadie et al. | 2015 | Comparative Politics and the Synthetic Control Method | [10.1111/ajps.12116](https://doi.org/10.1111/ajps.12116) |
