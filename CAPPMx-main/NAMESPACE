@@ -1,0 +1,7 @@
+useDynLib(CAPPMx, .registration=TRUE)
+importFrom(Rcpp, evalCpp)
+importFrom(randomForest, na.roughfix)
+importFrom(dbarts,bart2)
+importFrom(foreach,foreach,"%do%")
+importFrom(Rdpack,reprompt)
+exportPattern("^[[:alpha:]]+")

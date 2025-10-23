@@ -1,0 +1,289 @@
+---
+title: "Introduction to  CAPPMx"
+author:
+  - Noirrit Kiran Chandra^[noirritchandra@gmail.com]
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Introduction to  CAPPMx}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+Load the package:
+
+```{r setup}
+library(CAPPMx)
+```
+
+## Illustration with both Categorical and Continuous Covariates
+
+#### Simulation Setup
+
+We set the sample size and dimension.
+
+```{r set dimensions}
+p=10 #total number of covariates
+p_cat=3; # number of categorical covariates
+p_cont=p-p_cat # number of continuous covariates
+nsamp1=100 #number of subjects in the Trt arm 
+samp.ratio=6 
+nsamp2=samp.ratio * nsamp1 #number of subjects in the RWD arm 
+```
+
+We set the sample size in the RWD considerably larger than that in the treatment arm. Then we generate the covariates from mixture model. We consider a 2-component mixture in the treatment arm and a 3-component mixture in RWD such that the atoms of the mixtures in the RWD form a superset of the atoms of the mixtures in the treatment arm.
+
+```{r message=FALSE, results=FALSE, warning=FALSE, comment=FALSE}
+set.seed(1)
+library(mvtnorm)
+k2=2 ####number of true cluster -1
+
+##############sample mixture assignments########
+lab1= sample.int(n=k2,size=nsamp1, replace = T) #
+lab2= sample(1:(k2+1),size=nsamp2, replace = T,prob = c(1,1,4))
+################################################
+
+##set atoms for the mixtures of the coninuous covariates
+mu=matrix(0,nrow=k2+1,ncol=p-3)
+mu[1,1:2]=mu[2,5:6]=2
+########################################################
+
+######Binary categorical covariates
+prob_trt=.6 
+prob_rwd=.85
+#########################
+
+X1.cont=matrix(0, nrow=nsamp1,ncol=p_cont)
+X2.cont=matrix(0, nrow=nsamp2,ncol=p_cont); X2.cat=matrix(0, nrow=nsamp2,ncol=p_cat);
+
+var_each_mix=.05
+##########Generate from case (iii) Lamb model ########################
+# lambda=simulate_lambda(d,p,1)
+for(i in 1:(k2+1)){
+  ####set RWD
+  inds=which(lab2==i)
+  if(length(inds>0)){
+    X2.cont[inds,]= rmvnorm(length(inds),mean = mu[i,],sigma = var_each_mix*diag(p_cont ) )
+    if(i<=k2) ###set categorical covs in RWD 
+      X2.cat[inds,]= matrix(rbinom(p_cat*length(inds), size=1,prob = prob_trt),
+            nrow=length(inds)) else X2.cat[inds,]= matrix(rbinom(p_cat*length(inds),
+          size=1,prob = prob_rwd)  ,nrow=length(inds))
+  }
+  rm(inds)
+  ###########
+  ####set Trt Arm
+  inds=which(lab1==i)
+  if(length(inds>0))
+    X1.cont[inds,]= rmvnorm(length(inds),mean = mu[i,],sigma = var_each_mix*diag(p_cont ) )
+  rm(inds)
+  ###########
+  # print(i)
+}
+
+###set categorical covs in trt arm
+X1.cat=matrix(rbinom(p_cat*nsamp1, size=1,prob = prob_trt)  ,nrow=nsamp1)
+```
+
+Thus we have generated the following:
+
+-   `X1.cont` - continuous covariates in the treatment arm.
+
+-   `X1.cat` - categorical covariates in the treatment arm.
+
+-   `X2.cont` - continuous covariates in the RWD.
+
+-   `X2.cat` - categorical covariates in the RWD.
+
+Next we sample responses using a linear model
+
+```{r}
+X1=cbind(X1.cont, X1.cat)
+X2=cbind(X2.cont, X2.cat)
+# rm(X1.cont, X1.cat, X2.cont,X2.cat)
+#########################################
+
+delta=1 ##treatment effect
+
+#sample true regression coefficients for the linear response model
+beta= sample(c(-1,2),size=p,replace = T ) 
+beta[sample.int(p,5)]=0
+
+y1=rnorm(X1%*%beta)+delta #response in the treatment arm
+y2=rnorm(X2%*%beta) #response in the RWD
+rm(X1,X2)
+```
+
+We deliberately make 5% entries missing in each covariate vector
+
+```{r}
+make_missing=function(x, missing_percent=.05){
+  x.mis=x
+  x.mis[sample.int(n=length(x),size=floor(length(x)*.05)) ]=NA
+  x.mis
+}
+
+X1.cat.mis=make_missing(X1.cat);X1.cont.mis=make_missing(X1.cont)
+X2.cat.mis=make_missing(X2.cat);X2.cont.mis=make_missing(X2.cont)
+```
+
+#### CA-PPMx Fitting
+
+Then we fit the CA-PPMx model
+
+```{r fit_cappmx,message=FALSE, results=FALSE, warning=FALSE, comment=FALSE}
+result=cappmx_fit(X1.cat.mis, #categorical covariates in the trt arm
+        X1.cont.mis, #continuous covariates in the trt arm
+        y1, #observed responses in the trt arm
+        rep(TRUE,length(y1)), #survival indicators in the trt arm
+        X2.cat.mis, #categorical covariates in the RWD
+        X2.cont.mis, #continuous covariates in the RWD
+        y2, # observed responses in the RWD
+        rep(TRUE,length(y2)) #survival indicators in the RWD
+        )
+```
+
+#### Investigate Population Equivalence
+
+We compare the area under the curve (AUC) values using Bayesian additive regression tree (BART) classifiers for our *importance-resampling adjusted* synthetic control population versus *randomly resampled* population.
+
+```{r find_auc, message=FALSE, results=FALSE, warning=FALSE, comment=FALSE}
+aucs=get_auc(cat_cov_trt=X1.cat.mis,cont_cov_trt=X1.cont.mis,
+                 cat_cov_rwd=X2.cat.mis,cont_cov_rwd=X2.cont.mis, result)
+```
+
+```{r show_aucs}
+aucs
+```
+
+Next we proceed towards model-based analysis on treatment effects.
+
+#### Bayesian Model-Based Inference on Treatment Effect
+
+Estimate the *average treatment effect* from the MCMC outputs stored in `result`
+
+```{r}
+average_trt_effect(result)
+```
+
+## Illustration with *ONLY Categorical* Covariates
+
+We use the previously sampled categorical covariates. Then we generate the response
+
+```{r }
+X1=cbind( X1.cat)
+X2=cbind(X2.cat)
+#########################################
+
+delta=1 ##treatment effect
+
+#sample true regression coefficients for the linear response model
+beta= c(-1,0,2) 
+
+y1=rnorm(X1%*%beta)+delta #response in the treatment arm
+y2=rnorm(X2%*%beta) #response in the RWD
+rm(X1,X2)
+```
+
+#### CA-PPMx Fitting
+
+Then we fit the CA-PPMx model
+
+```{r fit_cappmx_cat_only,message=FALSE, results=FALSE, warning=FALSE, comment=FALSE}
+result=cappmx_fit(cat_cov_trt=X1.cat.mis, #categorical covariates in the trt arm
+         cont_cov_trt= NULL, #we set the continuous covariate=NULL
+        y1, #observed responses in the trt arm
+        rep(TRUE,length(y1)), #survival indicators in the trt arm
+        cat_cov_rwd=X2.cat.mis, #categorical covariates in the RWD
+        cont_cov_rwd=NULL, #continuous covariates in the RWD
+        y2, # observed responses in the RWD
+        rep(TRUE,length(y2)) #survival indicators in the RWD
+        )
+```
+
+#### Investigate Population Equivalence
+
+We compare the area under the curve (AUC) values using Bayesian additive regression tree (BART) classifiers for our *importance-resampling adjusted* synthetic control population versus *randomly resampled* population.
+
+```{r find_auc_cat_only, message=FALSE, results=FALSE, warning=FALSE, comment=FALSE}
+aucs=get_auc(cat_cov_trt=X1.cat.mis, #categorical covariates in the trt arm
+        cat_cov_rwd=X2.cat.mis, #categorical covariates in the RWD
+        result=result)
+```
+
+```{r show_aucs_cat_only}
+aucs
+```
+
+Next we proceed towards model-based analysis on treatment effects.
+
+#### Bayesian Model-Based Inference on Treatment Effect
+
+Estimate the *average treatment effect* from the MCMC outputs stored in `result`
+
+```{r}
+average_trt_effect(result)
+```
+
+## Illustration with *ONLY Continuous* Covariates
+
+We use the previously sampled categorical covariates. Then we generate the response
+
+```{r }
+X1=cbind( X1.cont)
+X2=cbind(X2.cont)
+#########################################
+
+delta=1 ##treatment effect
+
+#sample true regression coefficients for the linear response model
+beta= sample(x=c(-1,0,2),size=ncol(X1),replace = T,prob = c(1,2,1)) 
+
+y1=rnorm(X1%*%beta)+delta #response in the treatment arm
+y2=rnorm(X2%*%beta) #response in the RWD
+rm(X1,X2)
+```
+
+#### CA-PPMx Fitting
+
+Then we fit the CA-PPMx model
+
+```{r fit_cappmx_cont_only,message=FALSE, results=FALSE, warning=FALSE, comment=FALSE}
+result=cappmx_fit(cont_cov_trt= X1.cont.mis, 
+         response_trt=y1, #observed responses in the trt arm
+        surv_ind_trt=rep(TRUE,length(y1)), #survival indicators in the trt arm
+        cont_cov_rwd=X2.cont.mis, #continuous covariates in the RWD
+        response_rwd=y2, # observed responses in the RWD
+        surv_ind_rwd=rep(TRUE,length(y2)) #survival indicators in the RWD
+        )
+```
+
+#### Investigate Population Equivalence
+
+We compare the area under the curve (AUC) values using Bayesian additive regression tree (BART) classifiers for our *importance-resampling adjusted* synthetic control population versus *randomly resampled* population.
+
+```{r find_auc_cont_only, message=FALSE, results=FALSE, warning=FALSE, comment=FALSE}
+aucs=get_auc(cont_cov_trt= X1.cont.mis, 
+        cont_cov_rwd=X2.cont.mis, #continuous covariates in the RWD,
+        result=result)
+```
+
+```{r show_aucs_cont_only}
+aucs
+```
+
+Next we proceed towards model-based analysis on treatment effects.
+
+#### Bayesian Model-Based Inference on Treatment Effect
+
+Estimate the *average treatment effect* from the MCMC outputs stored in `result`
+
+```{r}
+average_trt_effect(result)
+```
+
