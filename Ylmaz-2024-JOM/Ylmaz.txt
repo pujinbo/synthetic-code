@@ -1,0 +1,449 @@
+***[NOTE: Please set a working directory first]***
+*cd ......
+
+clear
+clear all
+
+***** INITIAL STEPS
+*** Step 0.a: Declaring output variable names and the filename of a Stata dataset (mcs50Rand) where results will be saved
+postfile buffer te_hat se_hat bias mse obs ///
+te_nn3 se_nn3 bias_nn3 mse_nn3 obs_nn3 ///
+te_1c01 se_1c01 bias_1c01 mse_1c01 obs_1c01 ///
+te_3c01 se_3c01 bias_3c01 mse_3c01 obs_3c01 ///
+te_copt1  se_copt1  bias_copt1  mse_copt1  obs_copt1 ///
+te_copt3 se_copt3 bias_copt3 mse_copt3 obs_copt3 ///
+te_nn1_norpl se_nn1_norpl bias_nn1_norpl mse_nn1_norpl obs_nn1_norpl ///
+te_nc01  se_nc01  bias_nc01  mse_nc01  obs_nc01 ///
+te_ncopt se_ncopt bias_ncopt mse_ncopt obs_ncopt ///
+te_r001 se_r001 bias_r001 mse_r001 obs_r001 ///
+te_r01 se_r01 bias_r01 mse_r01 obs_r01 ///
+te_PSW se_PSW bias_PSW  mse_PSW  obs_PSW ///
+te_PSW10 se_PSW10 bias_PSW10 mse_PSW10 obs_PSW10 ///
+te_PSW99 se_PSW99 bias_PSW99 mse_PSW99 obs_PSW99 ///
+te_PSW95 se_PSW95 bias_PSW95 mse_PSW95 obs_PSW95 ///
+te_PSWodds se_PSWodds bias_PSWodds mse_PSWodds obs_PSWodds ///
+te_KN se_KN bias_KN mse_KN obs_KN ///
+te_KE  se_KE bias_KE mse_KE obs_KE ///
+te_CEM se_CEM bias_CEM mse_CEM obs_CEM ///
+te_CEMx3 se_CEMx3 bias_CEMx3 mse_CEMx3 obs_CEMx3 ///
+te_CEMless se_CEMless bias_CEMless mse_CEMless obs_CEMless ///
+te_CEMx3less se_CEMx3less bias_CEMx3less mse_CEMx3less obs_CEMx3less ///
+te_CEMk2kless se_CEMk2kless bias_CEMk2kless mse_CEMk2kless obs_CEMk2kless using mcs50Rand, replace
+
+*** Step 0.b: Creating a correlation matrix and mean and standard deviation vectors for future use
+matrix Cext = (1, 0.3, 0.2, 0, 0 \ 0.3, 1, 0.1, 0, 0  \ 0.2, 0.1 , 1, 0, 0 \ 0,0,0, 1, -0.2 \ 0,0,0, -0.2, 1)
+matrix Mext = 0,0,0,20,0
+matrix SDext= 1, 1 , 1,3,5
+
+*** Step 0.c: Setting seed
+set seed 1000
+
+*** Step 0.d: Starting for loop for Monte Carlo simulation
+***[NOTE: Please change 10000 to 800 for small sample size scenarios]***
+forvalues i=1/1000{
+	quietly drop _all
+    quietly set obs 10000 
+	
+***** STEP 1: INDEPENDENT VARIABLE GENERATION
+*** Step 1.a: Creating random numbers using mean and standard deviation vectors, and correlation matrix above. 
+quietly drawnorm x1 x2 x3 distance u, n(10000) corr(Cext) means(Mext) sd(SDext)
+
+*** Step 1.b: By using the random numbers generated, creating several independent variables by transformations explained in Appendix A
+** Distance
+gen logdistance=log(distance+1)
+** Age
+gen px1=normal(x1)
+quietly gen age_in =invgammap(9,px1)
+quietly egen age_inmax=max(age_in)
+quietly egen age_inmin=min(age_in)
+quietly gen age_inrange=age_inmax-age_inmin
+quietly replace age_in=(age_in-age_inmin)/age_inrange
+quietly gen age=(age_in*62)+18
+quietly replace age=int(age)
+** Income
+gen px2=normal(x2)
+quietly gen inc_in =invibeta(1.6,9,px2)
+quietly egen inc_inmax=max(inc_in)
+quietly egen inc_inmin=min(inc_in)
+quietly gen inc_inrange=inc_inmax-inc_inmin
+quietly replace inc_in=(inc_in-inc_inmin)/inc_inrange
+quietly gen hhincome=(inc_in*240)+10
+quietly replace hhincome=int(hhincome)
+quietly gen loghhincome=log(hhincome*1000)
+** PastSpent**
+gen px3=normal(x3)
+quietly gen pastspent_in =invibeta(0.2,12,px3)
+quietly egen pastspent_inmax=max(pastspent_in)
+quietly egen pastspent_inmin=min(pastspent_in)
+quietly gen pastspent_inrange=pastspent_inmax-pastspent_inmin
+quietly replace pastspent_in=(pastspent_in-pastspent_inmin)/pastspent_inrange
+quietly gen pastspent=(pastspent_in*3940)+60
+
+*** Step 1.c: Creating additional independent variables 
+** Male
+quietly gen male_in =runiform(0,1)
+quietly gen male=0
+quietly replace male=1 if male_in<=0.45
+** PastVisits
+quietly gen pastvisits = rnbinomial(5,0.5)+1
+quietly gen logpastvisits=log(pastvisits)
+** Tenure
+quietly gen tenure_unif=runiform(0,1)
+quietly gen custtenure_2447=0
+quietly replace custtenure_2447=1 if tenure_unif>=0.4 & tenure_unif<0.6
+quietly gen custtenure_48=0
+quietly replace custtenure_48=1 if tenure_unif>=0.6 
+
+***** STEP 2: TREATMENT GENERATION
+*** Step 2.a: Creating treatment variable (Promotion)
+quietly gen v=rnormal(0,2)
+quietly gen promo= -3*logdistance + 1*logpastvisits -0.03*age + v
+quietly gen w_int=0
+
+***[NOTE: For the non-linearity, please change line 101 into the following line.]***
+*quietly gen promo= -3*logdistance + 1*logpastvisits +0.03*age - 0.0004*age^2 +0.9*logdistance*logpastvisits+ v 
+
+*** Step 2.b: Defining the threshold and transformation to 0/1 binary treatment
+***[NOTE: Change "0.4, 0.6" to "0.8, 0.9" for the small treatment scenarios]***
+scalar rand_per=runiform(,0.4, 0.6)*100
+quietly egen w_r= pctile(promo), p(`=scalar(rand_per)')
+quietly replace w_int=1 if promo>w_r
+
+***** STEP 3: OUTCOME GENERATION
+*** Step 3.a: Creating outcome variable (OnlineSpent)
+quietly gen spending= 40+ 10*w_int -5*male -0.1*age +0.1*loghhincome +0.05*logpastvisits+ 0.05*pastspent -3*custtenure_2447 +10*custtenure_48 + u
+
+***** STEP 4: PROPENSITY SCORE MATCHING SPECIFICATIONS
+
+***[NOTE: For the proxies, (1) please use the following lines to create proxies at this point and (2) replace the original variables in the following with the proxy variables.]***
+** Distance proxy
+*gen dist_proxy= 12.5 if distance<=15
+*replace  dist_proxy= 17.5 if distance>15 & distance<=20 
+*replace  dist_proxy= 22.5 if distance>20 & distance<=25
+*replace  dist_proxy= 27.5 if distance>25 
+*gen logzipdistance=log(dist_proxy)
+** Income proxy
+*gen age_hhinc= 37.5 if age<=24
+*replace age_hhinc= 55 if age>24 & age<=44
+*replace age_hhinc= 70 if age>44 
+*gen loghhincome2= log(age_hhinc*1000)
+
+*[1] NN1·wr·nc*
+quietly psmatch2 w_int male age loghhincome logpastvisits pastspent custtenure_2447 custtenure_48 logdistance, n(1) logit out(spending)
+quietly reg spending w_int male age loghhincome logpastvisits pastspent custtenure_2447 custtenure_48 logdistance [weight=_weight] if _weight!=.
+	local r= (_b[w_int])
+	local se= (_se[w_int])
+	local n= e(N)
+	local m= (_b[w_int] -10)^2
+	local b= abs(_b[w_int] -10)
+	
+*[2] NN3·wr·nc*
+quietly psmatch2 w_int male age loghhincome logpastvisits pastspent custtenure_2447 custtenure_48 logdistance, n(3) logit out(spending)
+quietly reg spending w_int male age loghhincome logpastvisits pastspent custtenure_2447 custtenure_48 logdistance [weight=_weight] if _weight!=.
+	local r3= (_b[w_int])
+	local se3= (_se[w_int])
+	local n3= e(N)
+	local m3= (_b[w_int] -10)^2
+	local b3= abs(_b[w_int] -10)
+
+*[3] NN1·wr·c(.01)*
+quietly psmatch2 w_int male age loghhincome logpastvisits pastspent custtenure_2447 custtenure_48 logdistance, n(1) logit cal(0.01) out(spending) 
+quietly reg spending w_int male age loghhincome logpastvisits pastspent custtenure_2447 custtenure_48 logdistance [weight=_weight] if _weight!=.
+	local r_1c01= (_b[w_int])
+	local se_1c01= (_se[w_int])
+	local n_1c01= e(N)
+	local m_1c01= (_b[w_int] -10)^2
+	local b_1c01= abs(_b[w_int] -10)
+
+*[4] NN3·wr·c(.01)*
+quietly psmatch2 w_int male age loghhincome logpastvisits pastspent custtenure_2447 custtenure_48 logdistance, n(3) logit cal(0.01) out(spending) 
+quietly reg spending w_int male age loghhincome logpastvisits pastspent custtenure_2447 custtenure_48 logdistance [weight=_weight] if _weight!=.
+	local r_3c01= (_b[w_int])
+	local se_3c01= (_se[w_int])
+	local n_3c01= e(N)
+	local m_3c01= (_b[w_int] -10)^2
+	local b_3c01= abs(_b[w_int] -10)
+
+*Finding standard deviation of propensity scores
+egen sdPS=sd(_pscore)
+gen optcal=sdPS/4
+summarize optcal, meanonly
+scalar oc=r(mean)
+
+*[5] NN1·wr·c(sd/4)*
+quietly psmatch2 w_int male age loghhincome logpastvisits pastspent custtenure_2447 custtenure_48 logdistance, n(1) logit cal(`=scalar(oc)') out(spending) 
+quietly reg spending w_int male age loghhincome logpastvisits pastspent custtenure_2447 custtenure_48 logdistance [weight=_weight] if _weight!=.
+	local r_copt1= (_b[w_int])
+	local se_copt1= (_se[w_int])
+	local n_copt1= e(N)
+	local m_copt1= (_b[w_int] -10)^2
+	local b_copt1= abs(_b[w_int] -10)
+	
+*[6] NN3·wr·c(sd/4)*	
+quietly psmatch2 w_int male age loghhincome logpastvisits pastspent custtenure_2447 custtenure_48 logdistance, n(3) logit cal(`=scalar(oc)') out(spending) 
+quietly reg spending w_int male age loghhincome logpastvisits pastspent custtenure_2447 custtenure_48 logdistance [weight=_weight] if _weight!=.
+	local r_copt3= (_b[w_int])
+	local se_copt3= (_se[w_int])
+	local n_copt3= e(N)
+	local m_copt3= (_b[w_int] -10)^2
+	local b_copt3= abs(_b[w_int] -10)
+	
+*[7] NN1·nr·nc*
+quietly psmatch2 w_int male age loghhincome logpastvisits pastspent custtenure_2447 custtenure_48 logdistance, n(1) logit out(spending) norepl descending
+quietly reg spending w_int male age loghhincome logpastvisits pastspent custtenure_2447 custtenure_48 logdistance [weight=_weight] if _weight!=.
+	local rnrpl= (_b[w_int])
+	local senrpl= (_se[w_int])
+	local nnrpl= e(N)
+	local mnrpl= (_b[w_int] -10)^2
+	local bnrpl= abs(_b[w_int] -10)
+	
+*[8] NN1·nr·c(.01)*
+quietly psmatch2 w_int male age loghhincome logpastvisits pastspent custtenure_2447 custtenure_48 logdistance, n(1) logit cal(0.01) out(spending) norepl
+ quietly reg spending w_int male age loghhincome logpastvisits pastspent custtenure_2447 custtenure_48 logdistance [weight=_weight] if _weight!=.
+	local r_nc01= (_b[w_int])
+	local se_nc01= (_se[w_int])
+	local n_nc01= e(N)
+	local m_nc01= (_b[w_int] -10)^2
+	local b_nc01= abs(_b[w_int] -10)
+	
+*Finding standard deviation of propensity scores	
+egen sdPSnp=sd(_pscore)
+gen optcalnp=sdPSnp/4
+summarize optcalnp, meanonly
+scalar ocnp=r(mean)
+
+*[9] NN1·nr·c(sd/4)*
+quietly psmatch2 w_int male age loghhincome logpastvisits pastspent custtenure_2447 custtenure_48 logdistance, n(1) logit cal(`=scalar(ocnp)') out(spending) norepl
+quietly reg spending w_int male age loghhincome logpastvisits pastspent custtenure_2447 custtenure_48 logdistance [weight=_weight] if _weight!=.
+    local r_ncopt= (_b[w_int])
+    local se_ncopt= (_se[w_int])
+	local n_ncopt= e(N)
+	local m_ncopt= (_b[w_int] -10)^2
+	local b_ncopt= abs(_b[w_int] -10)
+	
+*[10] RM·r(.001)*
+quietly psmatch2 w_int male age loghhincome logpastvisits pastspent custtenure_2447 custtenure_48 logdistance, radius cal(0.001) out(spending) 
+quietly reg spending w_int male age loghhincome logpastvisits pastspent custtenure_2447 custtenure_48 logdistance [weight=_weight] if _weight!=.
+	local r_r001= (_b[w_int]) 
+	local se_r001= (_se[w_int])
+	local n_r001= e(N)
+	local m_r001= (_b[w_int] -10)^2
+	local b_r001= abs(_b[w_int] -10)
+
+*[11] RM·r(.01)*	
+quietly psmatch2 w_int male age loghhincome logpastvisits pastspent custtenure_2447 custtenure_48 logdistance, radius cal(0.01) out(spending) 
+quietly reg spending w_int male age loghhincome logpastvisits pastspent custtenure_2447 custtenure_48 logdistance [weight=_weight] if _weight!=.
+	local r_r01= (_b[w_int])
+    local se_r01= (_se[w_int])
+	local n_r01= e(N)
+	local m_r01= (_b[w_int] -10)^2
+	local b_r01= abs(_b[w_int] -10)
+	
+*Computing inverse propensity score weights and propensity score odds
+quietly psmatch2 w_int male age loghhincome logpastvisits pastspent custtenure_2447 custtenure_48 logdistance, n(1) logit out(spending)
+    quietly gen ps = 1/_pscore if w_int==1
+    quietly replace ps = 1/(1-_pscore) if w_int==0
+	quietly gen ps_odds = 1 if w_int==1
+	quietly replace ps_odds = _pscore/(1-_pscore) if w_int==0
+	
+*[12] PSW·Std*    
+quietly reg spending w_int male age loghhincome logpastvisits pastspent custtenure_2447 custtenure_48 logdistance [weight=ps] 
+	local r_PSW= (_b[w_int])
+    local se_PSW= (_se[w_int])
+	local n_PSW= e(N)
+	local m_PSW= (_b[w_int] -10)^2
+	local b_PSW= abs(_b[w_int] -10)
+
+*[13] PSW·w<10*
+quietly reg spending w_int male age loghhincome logpastvisits pastspent custtenure_2447 custtenure_48 logdistance [weight=ps] if ps<10
+	local r_PSW10= (_b[w_int])
+    local se_PSW10= (_se[w_int])
+	local n_PSW10= e(N)
+	local m_PSW10= (_b[w_int] -10)^2
+	local b_PSW10= abs(_b[w_int] -10)
+
+*Finding 1st and 99th percentiles for weights
+	quietly sum ps,d
+	quietly scalar ps99= r(p99)
+	quietly scalar ps1= r(p1)
+	
+*[14] PSW·tr(%2)*	
+quietly reg spending w_int male age loghhincome logpastvisits pastspent custtenure_2447 custtenure_48 logdistance [weight=ps] if ps<ps99 & ps>ps1
+	local r_PSW99= (_b[w_int])
+    local se_PSW99= (_se[w_int])
+	local n_PSW99= e(N)
+	local m_PSW99= (_b[w_int] -10)^2
+	local b_PSW99= abs(_b[w_int] -10)
+
+*Finding 5th and 95th percentiles for weights			
+	quietly sum ps,d
+	quietly scalar ps95= r(p95)
+	quietly scalar ps5= r(p5)
+	
+*[15] PSW·tr(%10)*	
+quietly reg spending w_int male age loghhincome logpastvisits pastspent custtenure_2447 custtenure_48 logdistance [weight=ps] if ps<ps95 & ps>ps5
+	local r_PSW95= (_b[w_int])
+    local se_PSW95= (_se[w_int])
+	local n_PSW95= e(N)
+	local m_PSW95= (_b[w_int] -10)^2
+	local b_PSW95= abs(_b[w_int] -10)
+	
+*[16] PSW·Odds*		
+quietly reg spending w_int male age loghhincome logpastvisits pastspent custtenure_2447 custtenure_48 logdistance [weight=ps_odds] 
+	local r_PSWodds= (_b[w_int])
+    local se_PSWodds= (_se[w_int])
+	local n_PSWodds= e(N)
+	local m_PSWodds= (_b[w_int] -10)^2
+	local b_PSWodds= abs(_b[w_int] -10)
+	
+*[17] KW·Norm*
+quietly psmatch2 w_int male age loghhincome logpastvisits pastspent custtenure_2447 custtenure_48 logdistance, kernel k(normal)  out(spending) 
+quietly reg spending w_int male age loghhincome logpastvisits pastspent custtenure_2447 custtenure_48 logdistance [weight=_weight] if _weight!=.
+	local r_KN= (_b[w_int])
+	local se_KN= (_se[w_int])
+	local n_KN= e(N)
+	local m_KN= (_b[w_int] -10)^2
+	local b_KN= abs(_b[w_int] -10)
+	
+*[18] KW·Epan*
+quietly psmatch2 w_int male age loghhincome logpastvisits pastspent custtenure_2447 custtenure_48 logdistance, kernel k(epan) bw(0.01) out(spending)
+quietly reg spending w_int male age loghhincome logpastvisits pastspent custtenure_2447 custtenure_48 logdistance [weight=_weight] if _weight!=.
+	local r_KE= (_b[w_int])
+	local se_KE= (_se[w_int])
+	local n_KE= e(N)
+	local m_KE= (_b[w_int] -10)^2
+	local b_KE= abs(_b[w_int] -10)
+
+***** STEP 5: COARSENED EXACT MATCHING SPECIFICATIONS
+*[19] CEM·All·Auto*
+quietly cem male age loghhincome logpastvisits pastspent custtenure_2447 custtenure_48 logdistance, treatment(w_int) 
+	 quietly egen totalmatched=total(cem_matched)
+	 if totalmatched==0 {
+	 local r_CEM= 0
+	 local se_CEM= 0
+	 local n_CEM= 0
+	 local m_CEM= 0
+	 local b_CEM= 0	
+	 }
+	 else{ 
+quietly reg spending w_int male age loghhincome logpastvisits pastspent custtenure_2447 custtenure_48 logdistance[weight=cem_weights] if cem_matched==1 
+	 local r_CEM= (_b[w_int])
+	 local se_CEM= (_se[w_int])
+	 local n_CEM= e(N)
+	 local m_CEM= (_b[w_int] -10)^2
+	 local b_CEM= abs(_b[w_int] -10)
+	 }
+	 
+	 drop totalmatched
+	 
+*[20] CEM·All·User*
+capture quietly cem male age(24 44) loghhincome logpastvisits(0 1 2 3) pastspent custtenure_2447 custtenure_48 logdistance, treatment(w_int)
+	 quietly egen totalmatched=total(cem_matched)
+	 if totalmatched==0 {
+	 local r_CEMx3= 0
+	 local se_CEMx3=0
+	 local n_CEMx3= 0
+	 local m_CEMx3= 0
+	 local b_CEMx3= 0	
+	 }
+	 else{ 
+quietly reg spending w_int male age loghhincome logpastvisits pastspent custtenure_2447 custtenure_48 logdistance [weight=cem_weights] if cem_matched==1 
+	 local r_CEMx3= (_b[w_int])
+	 local se_CEMx3= (_se[w_int])
+	 local n_CEMx3= e(N)
+	 local m_CEMx3= (_b[w_int] -10)^2
+	 local b_CEMx3= abs(_b[w_int] -10)
+	 }
+	 
+	 drop totalmatched
+
+*[21] CEM·Partial·Auto*
+quietly cem age logpastvisits logdistance, treatment(w_int) 
+	 quietly egen totalmatched=total(cem_matched)
+	 if totalmatched==0 {
+	 local r_lCEM= 0
+	 local se_lCEM= 0
+	 local n_lCEM= 0
+	 local m_lCEM= 0
+	 local b_lCEM= 0	
+	 }
+	 else{ 
+quietly reg spending w_int male age loghhincome logpastvisits pastspent custtenure_2447 custtenure_48 logdistance [weight=cem_weights] if cem_matched==1 
+	 local r_lCEM= (_b[w_int])
+	 local se_lCEM= (_se[w_int])
+	 local n_lCEM= e(N)
+	 local m_lCEM= (_b[w_int] -10)^2
+	 local b_lCEM= abs(_b[w_int] -10)
+	 }
+	 
+	 drop totalmatched
+	 
+*[22] CEM·Partial·User*
+capture quietly cem age(24 44) logpastvisits(0 1 2 3) logdistance, treatment(w_int)
+	 quietly egen totalmatched=total(cem_matched)
+	 if totalmatched==0 {
+	 local r_lCEMx3= 0
+	 local se_lCEMx3=0
+	 local n_lCEMx3= 0
+	 local m_lCEMx3= 0
+	 local b_lCEMx3= 0	
+	 }
+	 else{ 
+quietly reg spending w_int male age loghhincome logpastvisits pastspent custtenure_2447 custtenure_48 logdistance [weight=cem_weights] if cem_matched==1 
+	 local r_lCEMx3= (_b[w_int])
+	 local se_lCEMx3= (_se[w_int])
+	 local n_lCEMx3= e(N)
+	 local m_lCEMx3= (_b[w_int] -10)^2
+	 local b_lCEMx3= abs(_b[w_int] -10)
+	 }
+	 
+	 drop totalmatched
+	 
+*[23] CEM·Partial·k2k*	
+capture quietly cem age logpastvisits logdistance, treatment(w_int) k2k
+	 quietly egen totalmatched=total(cem_matched)
+	 if totalmatched==0 {
+	local r_lCEMk2k= 0
+	local se_lCEMk2k= 0
+	local n_lCEMk2k= 0
+	local m_lCEMk2k= 0
+	local b_lCEMk2k= 0	
+	 }
+	 else{ 
+quietly reg spending w_int male age loghhincome logpastvisits pastspent custtenure_2447 custtenure_48 logdistance [weight=cem_weights] if cem_matched==1 
+	local r_lCEMk2k= (_b[w_int])
+	local se_lCEMk2k= (_se[w_int])
+	local n_lCEMk2k= e(N)
+	local m_lCEMk2k= (_b[w_int] -10)^2
+	local b_lCEMk2k= abs(_b[w_int] -10)
+	 }
+
+***[NOTE: The following adds outputs to the declared dataset through simulations.]***
+post buffer (`r') (`se') (`b')  (`m') (`n') ///
+    (`r3') (`se3') (`b3')  (`m3') (`n3') ///
+	(`r_1c01') (`se_1c01') (`b_1c01')  (`m_1c01') (`n_1c01') ///
+	(`r_3c01') (`se_3c01') (`b_3c01')  (`m_3c01') (`n_3c01') ///
+	(`r_copt1') (`se_copt1') (`b_copt1')  (`m_copt1') (`n_copt1') ///
+	(`r_copt3') (`se_copt3') (`b_copt3')  (`m_copt3') (`n_copt3') ///
+	(`rnrpl') (`senrpl') (`bnrpl')  (`mnrpl') (`nnrpl') ///
+	(`r_nc01') (`se_nc01') (`b_nc01')  (`m_nc01') (`n_nc01') ///
+	(`r_ncopt') (`se_ncopt') (`b_ncopt')  (`m_ncopt') (`n_ncopt') ///
+	(`r_r001') (`se_r001') (`b_r001')  (`m_r001') (`n_r001') ///
+	(`r_r01') (`se_r01') (`b_r01')  (`m_r01') (`n_r01') ///
+	(`r_PSW') (`se_PSW') (`b_PSW')  (`m_PSW') (`n_PSW') ///
+	(`r_PSW10') (`se_PSW10') (`b_PSW10')  (`m_PSW10') (`n_PSW10')  ///
+	(`r_PSW99') (`se_PSW99') (`b_PSW99') (`m_PSW99') (`n_PSW99') ///
+	(`r_PSW95') (`se_PSW95') (`b_PSW95') (`m_PSW95') (`n_PSW95') ///
+	(`r_PSWodds') (`se_PSWodds') (`b_PSWodds') (`m_PSWodds') (`n_PSWodds') ///
+	(`r_KN') (`se_KN') (`b_KN')  (`m_KN') (`n_KN') ///
+	(`r_KE') (`se_KE') (`b_KE')  (`m_KE') (`n_KE') ///
+	(`r_CEM') (`se_CEM') (`b_CEM')  (`m_CEM') (`n_CEM') ///
+	(`r_CEMx3') (`se_CEMx3') (`b_CEMx3')  (`m_CEMx3') (`n_CEMx3') ///
+	(`r_lCEM') (`se_lCEM') (`b_lCEM')  (`m_lCEM') (`n_lCEM') ///
+	(`r_lCEMx3') (`se_lCEMx3') (`b_lCEMx3')  (`m_lCEMx3') (`n_lCEMx3') ///
+	(`r_lCEMk2k') (`se_lCEMk2k') (`b_lCEMk2k') (`m_lCEMk2k') (`n_lCEMk2k') 
+}
+
+***** FINAL STEP: Declaring an end to the posting of observations
+postclose buffer
+use mcs50Rand, clear
